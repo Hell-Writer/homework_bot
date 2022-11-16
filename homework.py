@@ -32,12 +32,12 @@ logging.basicConfig(
 
 
 def send_message(bot, message):
-    """Отправка сообщения"""
+    """Отправка сообщения."""
     bot.send_message(TELEGRAM_CHAT_ID, message)
 
 
 def get_api_answer(current_timestamp):
-    """Получаем ответ от сервера"""
+    """Получаем ответ от сервера."""
     try:
         timestamp = current_timestamp or int(time.time())
         params = {'from_date': timestamp}
@@ -47,14 +47,14 @@ def get_api_answer(current_timestamp):
             return response.json()
         else:
             logging.error('Проблема с подключением к API')
-            raise ValueError('Проблема с подключением к API') 
-    except:
+            raise ValueError('Проблема с подключением к API')
+    except Exception:
         logging.error('Проблема с подключением к API')
-        raise ValueError('Проблема с подключением к API') 
+        raise ValueError('Проблема с подключением к API')
 
 
 def check_response(response):
-    """Проверка типов данных"""
+    """Проверка типов данных."""
     if type(response) != dict:
         logging.error('Неверный тип данных в JSON полученном с API')
         raise TypeError('Неверный тип данных в JSON полученном с API')
@@ -68,19 +68,23 @@ def check_response(response):
 
 
 def parse_status(homework):
-    """Статус проверки дз"""
+    """Статус проверки дз."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if homework_status in HOMEWORK_STATUSES.keys():
         verdict = HOMEWORK_STATUSES[homework_status]
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
     else:
-        logging.error('Недокументированный статус домашней работы, обнаруженный в ответе API')
-        raise KeyError('Недокументированный статус домашней работы, обнаруженный в ответе API')
+        logging.error(
+            '''Недокументированный статус домашней работы,
+            обнаруженный в ответе API'''
+        )
+        raise KeyError('''Недокументированный статус домашней работы,
+            обнаруженный в ответе API''')
 
 
 def check_tokens():
-    """Проверка переменных окружения"""
+    """Проверка переменных окружения."""
     if PRACTICUM_TOKEN is None:
         logging.critical('Отсутствует переменная окружения PRACTICUM_TOKEN')
         return False
@@ -96,7 +100,6 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
-
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
 
@@ -109,7 +112,7 @@ def main():
                 try:
                     send_message(bot, message)
                     logging.info('Сообщение отправлено')
-                except:
+                except Exception:
                     logging.error('Сообщение не отправлено')
             current_timestamp = int(time.time())
             time.sleep(RETRY_TIME)
