@@ -43,19 +43,24 @@ def get_api_answer(current_timestamp):
         params = {'from_date': timestamp}
         headers = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
         response = requests.get(URL, headers=headers, params=params)
-        return response.json()
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logging.error('Проблема с подключением к API')
+            raise ValueError('Проблема с подключением к API') 
     except:
         logging.error('Проблема с подключением к API')
+        raise ValueError('Проблема с подключением к API') 
 
 
 def check_response(response):
     """Проверка типов данных"""
     if type(response) != dict:
         logging.error('Неверный тип данных в JSON полученном с API')
-        return []
+        raise TypeError('Неверный тип данных в JSON полученном с API')
     elif type(response['homeworks']) != list:
         logging.error('Неверный тип данных в списке ДЗ полученном с API')
-        return []
+        raise TypeError('Неверный тип данных в списке ДЗ полученном с API')
     else:
         return response['homeworks']
     if response['homeworks'] == []:
@@ -71,18 +76,18 @@ def parse_status(homework):
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
     else:
         logging.error('Недокументированный статус домашней работы, обнаруженный в ответе API')
-        return 'Ошибка'
+        raise KeyError('Недокументированный статус домашней работы, обнаруженный в ответе API')
 
 
 def check_tokens():
     """Проверка переменных окружения"""
-    if len(PRACTICUM_TOKEN)==0:
+    if PRACTICUM_TOKEN is None:
         logging.critical('Отсутствует переменная окружения PRACTICUM_TOKEN')
         return False
-    elif len(TELEGRAM_TOKEN)==0:
+    elif TELEGRAM_TOKEN is None:
         logging.critical('Отсутствует переменная окружения TELEGRAM_TOKEN')
         return False
-    elif len(TELEGRAM_CHAT_ID)==0:
+    elif TELEGRAM_CHAT_ID is None:
         logging.critical('Отсутствует переменная окружения TELEGRAM_CHAT_ID')
         return False
     else:
