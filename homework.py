@@ -1,13 +1,10 @@
 import logging
 import os
-import datetime
 import time
 
 import requests
-from dotenv import load_dotenv
 import telegram
-from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
-
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -47,7 +44,7 @@ def get_api_answer(current_timestamp):
         headers = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
         response = requests.get(URL, headers=headers, params=params)
         return response.json()
-    except Exception:
+    except:
         logging.error('Проблема с подключением к API')
 
 
@@ -63,7 +60,7 @@ def check_response(response):
         return response['homeworks']
     if response['homeworks'] == []:
         logging.debug('Отсутствие в ответе новых статусов')
-        
+
 
 def parse_status(homework):
     """Статус проверки дз"""
@@ -90,7 +87,6 @@ def check_tokens():
         return False
     else:
         return True
-
 
 
 def main():
@@ -120,8 +116,7 @@ def main():
         else:
             logging.error('Неизвестный сбой в работе сервера')
             time.sleep(RETRY_TIME)
-            
 
 
 if __name__ == '__main__' and check_tokens():
-    main() 
+    main()
