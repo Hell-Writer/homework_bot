@@ -1,10 +1,12 @@
 import logging
 import os
 import time
-
+from http import HTTPStatus
 import requests
 import telegram
 from dotenv import load_dotenv
+
+from custom_errors import SendMessageError, ApiError
 
 load_dotenv()
 
@@ -30,10 +32,21 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO)
 
+# Для ревьюера
+# Я не стал проверять наличие ключа в словарях,
+# т.к. по дефолту без ключа ставил значение None, а затем
+# просто проверял значение на соответствие типу.
+
 
 def send_message(bot, message):
     """Отправка сообщения."""
-    bot.send_message(TELEGRAM_CHAT_ID, message)
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+    except Exception:
+        logging.error('Сообщение не отправлено')
+        raise SendMessageError('Проблема с отправкой сообщения')
+    else:
+        logging.info('Сообщение отправлено')
 
 
 def get_api_answer(current_timestamp):
@@ -43,23 +56,21 @@ def get_api_answer(current_timestamp):
         params = {'from_date': timestamp}
         headers = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
         response = requests.get(URL, headers=headers, params=params)
-        if response.status_code == 200:
+        logging.debug('Отправлен запрос на сервер')
+        if response.status_code == HTTPStatus.OK:
             return response.json()
         else:
-            logging.error('Проблема с подключением к API')
-            raise ValueError('Проблема с подключением к API')
+            raise ApiError('Проблема с ответом API')
     except Exception:
-        logging.error('Проблема с подключением к API')
-        raise ValueError('Проблема с подключением к API')
+        raise ApiError('Проблема с подключением к API')
 
 
 def check_response(response):
     """Проверка типов данных."""
-    if type(response) != dict:
-        logging.error('Неверный тип данных в JSON полученном с API')
+    if not isinstance(response, dict):
         raise TypeError('Неверный тип данных в JSON полученном с API')
-    elif type(response['homeworks']) != list:
-        logging.error('Неверный тип данных в списке ДЗ полученном с API')
+    homework = response.get('homeworks', None)
+    if not isinstance(homework, list):
         raise TypeError('Неверный тип данных в списке ДЗ полученном с API')
     else:
         return response['homeworks']
@@ -69,62 +80,48 @@ def check_response(response):
 
 def parse_status(homework):
     """Статус проверки дз."""
-    homework_name = homework['homework_name']
-    homework_status = homework['status']
-    if homework_status in HOMEWORK_STATUSES.keys():
-        verdict = HOMEWORK_STATUSES[homework_status]
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    else:
-        logging.error(
-            '''Недокументированный статус домашней работы,
-            обнаруженный в ответе API'''
-        )
+    homework_name = homework.get('homework_name', None)
+    homework_status = homework.get('status', None)
+    verdict = HOMEWORK_STATUSES.get(homework_status, None)
+    if homework_name is None or verdict is None:
         raise KeyError('''Недокументированный статус домашней работы,
             обнаруженный в ответе API''')
+    else:
+        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
     """Проверка переменных окружения."""
-    if PRACTICUM_TOKEN is None:
-        logging.critical('Отсутствует переменная окружения PRACTICUM_TOKEN')
-        return False
-    elif TELEGRAM_TOKEN is None:
-        logging.critical('Отсутствует переменная окружения TELEGRAM_TOKEN')
-        return False
-    elif TELEGRAM_CHAT_ID is None:
-        logging.critical('Отсутствует переменная окружения TELEGRAM_CHAT_ID')
-        return False
-    else:
-        return True
+    return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
 def main():
     """Основная логика работы бота."""
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
+    if check_tokens():
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
+        current_timestamp = int(time.time())
+    else:
+        logging.critical('Отсутствуют переменные окружения')
+        raise EnvironmentError('Отсутствуют переменные окружения')
 
     while True:
         try:
             response = get_api_answer(current_timestamp - RETRY_TIME)
             homeworks = check_response(response)
-            for homework in homeworks:
-                message = parse_status(homework)
-                try:
-                    send_message(bot, message)
-                    logging.info('Сообщение отправлено')
-                except Exception:
-                    logging.error('Сообщение не отправлено')
+            if homeworks:
+                message = parse_status(homeworks[0])
+                logging.info('Сообщение отправлено')
+            else:
+                logging.info('Домашек нет')
             current_timestamp = int(time.time())
-            time.sleep(RETRY_TIME)
-
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            logging.error('Неизвестный сбой в работе программы')
-            time.sleep(RETRY_TIME)
+            logging.error(message)
         else:
-            logging.error('Неизвестный сбой в работе сервера')
+            send_message(bot, message)
+        finally:
             time.sleep(RETRY_TIME)
 
 
-if __name__ == '__main__' and check_tokens():
+if __name__ == '__main__':
     main()
