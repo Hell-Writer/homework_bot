@@ -2,11 +2,13 @@ import logging
 import os
 import time
 from http import HTTPStatus
+from sys import exit
+
 import requests
 import telegram
 from dotenv import load_dotenv
 
-from custom_errors import SendMessageError, ApiError
+from custom_errors import ApiError, SendMessageError
 
 load_dotenv()
 
@@ -32,18 +34,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO)
 
-# Для ревьюера
-# Я не стал проверять наличие ключа в словарях,
-# т.к. по дефолту без ключа ставил значение None, а затем
-# просто проверял значение на соответствие типу.
-
 
 def send_message(bot, message):
     """Отправка сообщения."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
     except Exception:
-        logging.error('Сообщение не отправлено')
         raise SendMessageError('Проблема с отправкой сообщения')
     else:
         logging.info('Сообщение отправлено')
@@ -69,25 +65,29 @@ def check_response(response):
     """Проверка типов данных."""
     if not isinstance(response, dict):
         raise TypeError('Неверный тип данных в JSON полученном с API')
-    homework = response.get('homeworks', None)
+    homework = response.get('homeworks')
+    if 'homeworks' not in response.keys():
+        raise KeyError('Неверный ключ ДЗ')
+    if 'current_date' not in response.keys():
+        raise KeyError('Неверный ключ времени')
     if not isinstance(homework, list):
         raise TypeError('Неверный тип данных в списке ДЗ полученном с API')
-    else:
-        return response['homeworks']
-    if response['homeworks'] == []:
-        logging.debug('Отсутствие в ответе новых статусов')
+    return homework
 
 
 def parse_status(homework):
     """Статус проверки дз."""
-    homework_name = homework.get('homework_name', None)
-    homework_status = homework.get('status', None)
-    verdict = HOMEWORK_STATUSES.get(homework_status, None)
-    if homework_name is None or verdict is None:
-        raise KeyError('''Недокументированный статус домашней работы,
-            обнаруженный в ответе API''')
-    else:
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    homework_name = homework.get('homework_name')
+    homework_status = homework.get('status')
+    if 'homework_name' not in homework.keys():
+        raise KeyError('Нет ключа homework_name')
+    if 'status' not in homework.keys():
+        raise KeyError('Нет ключа status')
+    if 'homework_name' not in HOMEWORK_STATUSES.keys():
+        raise KeyError(f'''Недокументированный статус домашней работы
+        {homework_name}, обнаруженный в ответе API''')
+    verdict = HOMEWORK_STATUSES.get(homework_status)
+    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
@@ -97,13 +97,12 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
-    if check_tokens():
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
-        current_timestamp = int(time.time())
-    else:
+    prev_message = ''
+    if not check_tokens():
         logging.critical('Отсутствуют переменные окружения')
-        raise EnvironmentError('Отсутствуют переменные окружения')
-
+        exit('Отсутствуют переменные окружения')
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    current_timestamp = int(time.time())
     while True:
         try:
             response = get_api_answer(current_timestamp - RETRY_TIME)
@@ -118,7 +117,9 @@ def main():
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
         else:
-            send_message(bot, message)
+            if message != prev_message:
+                send_message(bot, message)
+                prev_message = message
         finally:
             time.sleep(RETRY_TIME)
 
