@@ -112,6 +112,7 @@ def main():
                 message = parse_status(homeworks[0])
             else:
                 logging.debug('Домашек нет')
+                message = 'Домашек нет'
             current_timestamp = int(time.time())
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
