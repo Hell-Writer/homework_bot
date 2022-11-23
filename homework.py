@@ -83,7 +83,7 @@ def parse_status(homework):
         raise KeyError('Нет ключа homework_name')
     if 'status' not in homework.keys():
         raise KeyError('Нет ключа status')
-    if 'homework_name' not in HOMEWORK_STATUSES.keys():
+    if homework_status not in HOMEWORK_STATUSES.keys():
         raise KeyError(f'''Недокументированный статус домашней работы
         {homework_name}, обнаруженный в ответе API''')
     verdict = HOMEWORK_STATUSES.get(homework_status)
