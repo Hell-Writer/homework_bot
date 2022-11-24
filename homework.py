@@ -27,7 +27,7 @@ HOMEWORK_STATUSES = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-
+HOMEWORK_VERDICTS = HOMEWORK_STATUSES
 URL = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 
 logging.basicConfig(
@@ -41,9 +41,10 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
     except Exception:
+        logging.error('Сообщение не отправлено')
         raise SendMessageError('Проблема с отправкой сообщения')
     else:
-        logging.info('Сообщение отправлено')
+        logging.debug('Сообщение отправлено')
 
 
 def get_api_answer(current_timestamp):
